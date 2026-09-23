@@ -2,7 +2,7 @@
   (:require [app-diskutil.model :as model]
             [app-diskutil.page :as page]
             [app-diskutil.source :as source]
-            [clojure.test :refer [deftest is testing]]
+            [kotoba.test :refer [deftest is testing]]
             [design-quality.audit :as dq]
             [mokuroku.catalog :as catalog]
             [mokuroku.item :as item]))
