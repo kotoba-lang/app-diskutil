@@ -1,0 +1,19 @@
+;; app-diskutil — itonami（dapp）の aiueos アプリ記述子（notes.edn 形）。
+;; 判定コアは aiueos/diskutil_space.cljk（容量・percent・id・コマンド判定）。
+;; 正本は src/app_diskutil/model.cljk。pure（:effects #{}）。
+{:aiueos/component :app/diskutil-space
+ :aiueos/kind :app
+ :aiueos/trust :untrusted
+ :aiueos/source "diskutil_space.cljk"
+ :aiueos/wasm "diskutil_space.wasm"
+ :aiueos/entry "main"
+ :aiueos/args []
+ :aiueos/imports #{}
+ :aiueos/exports #{:app/main
+                   :app/free-space
+                   :app/percent-x10
+                   :app/id-is-uuid
+                   :app/command-admissible
+                   :app/capability-ok}
+ :aiueos/effects #{}
+ :aiueos/limits {:memory-pages 16 :fuel 5000000}}
