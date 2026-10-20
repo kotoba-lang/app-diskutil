@@ -1,0 +1,27 @@
+(ns app-diskutil.space-parity-test
+  "aiueos/diskutil_space.cljk（判定コア）と実物の model.cljk の parity。
+  free-space / percent-used / commands / capability が guest の判定と一致する。"
+  (:require [clojure.test :refer [deftest is testing]]
+            [app-diskutil.model :as model]))
+
+(deftest free-space-matches-guest
+  (testing "guest test-free: capacity - used"
+    (is (= 60 (model/free-space {:capacity 100 :used 40}))))
+  (testing "guest test-free-floor: used > capacity でも 0 で床打ち（負にしない）"
+    (is (= 0 (model/free-space {:capacity 100 :used 140})))
+    (is (= 0 (model/free-space {:capacity 5 :used 5})))))
+
+(deftest percent-matches-guest
+  (testing "guest test-percent: 10 倍整数に丸めた percent（1 桁小数）"
+    (is (= 50.0 (model/percent-used {:capacity 100 :used 50})))
+    (is (= 25.5 (model/percent-used {:capacity 1000 :used 255}))))
+  (testing "guest test-percent-unknown: 容量不明は nil（0 ではない）"
+    (is (nil? (model/percent-used {:capacity 0 :used 5})))
+    (is (nil? (model/percent-used {:capacity nil :used 5})))))
+
+(deftest surface-matches-guest
+  (testing "guest test-command: eject / copy-path のみ（Erase は無い）"
+    (is (= #{:eject :copy-path} model/commands))
+    (is (not (contains? model/commands :erase))))
+  (testing "guest test-capability: system/metrics のみ（fs/browse は要求しない）"
+    (is (= "system/metrics" model/capability))))

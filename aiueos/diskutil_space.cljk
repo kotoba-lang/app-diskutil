@@ -1,0 +1,86 @@
+(ns diskutil.space
+  "diskutil 判定コア — itonami dapp bundle（pure, :effects #{}）。
+
+  ボリュームの容量判定（正本: src/app_diskutil/model.cljk）:
+
+  - **free-space は 0 で床打ち**: used > capacity の報告がありうる（満杯の
+    APFS）。負の空き容量は真でなく、アプリのバグに見える。
+  - **percent-used は容量不明のとき 0 ではなく「不明」** —— 読めない容量の
+    ボリュームは空ボリュームではなく、0% はソートの安全端に置く。
+  - **id は UUID であって mount point ではない**（mount は動く。動く id は
+    Eject が誤った装置を狙う）。
+  - capability は **system/metrics のみ**（満杯度の読み取りに中身を見る権限は
+    不要。fs/browse は決して要求しない）。
+  - コマンドは **eject / copy-path のみ**（Erase は無い —— 「何もしないか
+    最悪のことをするボタン」になる）。
+
+  free-space: max(0, capacity - used)。引数欠落は -1（不明）
+  percent-x10: 1000*used/capacity を四捨五入した percent の 10 倍整数
+    （1 桁小数の表現）。capacity <= 0 は -1（不明 = 0 にしない）
+  id-is-uuid: 1 = id に UUID、0 = mount point 等（違反）
+  command-admissible: 1 = 0 eject / 1 copy-path の内
+  capability-ok: 1 = metrics のみ（fs/browse を要求しない）
+
+  実行 host はスカラーのみ = KIR v3 / i64/direct ABI（kernel/selfhost 両対応）。
+
+  テストはゼロ引数 test-*、戻り 1/0:
+  <amu> test aiueos/diskutil_space.cljk"
+  (:export [main free-space percent-x10 id-is-uuid command-admissible capability-ok
+            test-free test-free-floor test-percent test-percent-unknown
+            test-id test-command test-capability test-fail-closed]))
+
+(defn main [] :i64
+  0)
+
+(defn free-space [capacity :i64 used :i64] :i64
+  (if (and (>= capacity 0) (>= used 0))
+    (if (> used capacity) 0 (- capacity used))
+    -1))
+
+(defn percent-x10 [capacity :i64 used :i64] :i64
+  (if (> capacity 0)
+    (quot (+ (* 1000 used) (quot capacity 2)) capacity)
+    -1))
+
+(defn id-is-uuid [id-kind :i64] :i64
+  ;; 0 = UUID / 1 = mount point / 2 = その他
+  (if (= id-kind 0) 1 0))
+
+(defn command-admissible [cmd :i64] :i64
+  (if (and (>= cmd 0) (<= cmd 1)) 1 0))
+
+(defn capability-ok [metrics-only :i64] :i64
+  (if (= metrics-only 1) 1 0))
+
+;; --- tests（戻り 1 = pass） ------------------------------------------------
+
+(defn test-free [] :i64
+  (if (= (+ (free-space 100 40) (free-space 0 0)) 60) 1 0))
+
+(defn test-free-floor [] :i64
+  ;; used > capacity（満杯 APFS）でも 0 で床打ち。負にはしない
+  (if (= (+ (free-space 100 140) (free-space 5 5)) 0) 1 0))
+
+(defn test-percent [] :i64
+  ;; 50% = 500、25.5% = 255（10 倍整数）
+  (if (= (+ (percent-x10 100 50) (percent-x10 1000 255)) 755) 1 0))
+
+(defn test-percent-unknown [] :i64
+  ;; 容量不明は 0 ではなく -1（ソートの安全端に置かない）
+  (if (= (+ (percent-x10 0 5) (percent-x10 -1 5)) -2) 1 0))
+
+(defn test-id [] :i64
+  ;; id は UUID。mount point は動くので不可
+  (if (= (+ (id-is-uuid 0) (id-is-uuid 1) (id-is-uuid 2)) 1) 1 0))
+
+(defn test-command [] :i64
+  ;; eject / copy-path のみ。Erase は無い
+  (if (= (+ (command-admissible 0) (command-admissible 1) (command-admissible 2)) 2) 1 0))
+
+(defn test-capability [] :i64
+  ;; system/metrics のみ（fs/browse は要求しない）
+  (if (= (+ (capability-ok 1) (capability-ok 0)) 1) 1 0))
+
+(defn test-fail-closed [] :i64
+  ;; 引数欠落の free-space は -1（不明）
+  (if (= (free-space -5 10) -1) 1 0))
